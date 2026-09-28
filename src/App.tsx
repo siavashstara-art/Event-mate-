@@ -763,6 +763,220 @@ ${checkLines}`;
         />
       )}
 
+      {/* QUICK OVERSIGHT SUMMARY CARDS SECTION (ABOVE MAIN CONTENT) */}
+      <section
+        aria-label={
+          lang === 'FA'
+            ? 'خلاصه مدیریتی برآورد هزینه، تعداد مهمانان و مانده اقساط'
+            : 'Executive Summary: Total Estimated Cost, Guests, and Remaining Installment Balance'
+        }
+        className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-5 pb-1"
+      >
+        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-[#6E5A4F]">
+          <div className="flex items-center gap-2 font-semibold text-[#2C1E16]">
+            <span>
+              {lang === 'FA'
+                ? 'نمای سریع وضعیت مالی و ظرفیت قرارداد (به‌روزرسانی زنده)'
+                : 'Live Contract Oversight Summary'}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="text-[#9A7411]">
+              {customBrand.hallName} ({customBrand.city})
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-[11px] font-mono-num tabular-nums">
+            <span>
+              {lang === 'FA' ? 'پیش‌پرداخت نقدی:' : 'Down Payment:'}{' '}
+              {formatNumberLocale(downPaymentPercent, lang)}%
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              {lang === 'FA' ? 'تخفیف شب انتخابی:' : 'Date Discount:'}{' '}
+              {formatNumberLocale(calculation.discountPercent, lang)}%
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Card 1: Total Estimated Cost */}
+          <div className="rounded-2xl bg-white border border-[#D4AF37]/50 p-5 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-2 text-xs text-[#6E5A4F]">
+                <span className="font-semibold text-[#2C1E16]">
+                  {lang === 'FA' ? 'هزینه کل تخمینی مراسم' : 'Total Estimated Cost'}
+                </span>
+                <Wallet className="w-4 h-4 text-[#E11D48] shrink-0" />
+              </div>
+
+              <div className="mt-2 font-mono-num tabular-nums text-2xl sm:text-3xl font-black text-[#2C1E16] tracking-tight">
+                {formatMoney(calculation.finalTotalToman, currency, lang, liveRates)}
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-[#6E5A4F] font-mono-num tabular-nums">
+                <span>
+                  {lang === 'FA' ? 'سرانه هر نفر:' : 'Per guest:'}{' '}
+                  <strong className="text-[#E11D48]">
+                    {formatMoney(calculation.finalPerGuestToman, currency, lang, liveRates)}
+                  </strong>
+                </span>
+                <span aria-hidden="true">·</span>
+                <span>
+                  {formatNumberLocale(selectedItems.length, lang)}{' '}
+                  {lang === 'FA' ? 'آیتم منو' : 'menu items'}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-[#E6DFD3] flex items-center justify-between gap-2 text-xs">
+              <span className="text-[#6E5A4F] font-mono-num tabular-nums truncate">
+                {calculation.discountAmountToman > 0
+                  ? `${lang === 'FA' ? 'سود تخفیف:' : 'Saved:'} ${formatMoney(
+                      calculation.discountAmountToman,
+                      currency,
+                      lang,
+                      liveRates,
+                    )}`
+                  : lang === 'FA'
+                    ? 'بدون تخفیف تاریخ'
+                    : 'Standard date rate'}
+              </span>
+              <a
+                href="#builder"
+                className="font-bold text-[#E11D48] hover:underline whitespace-nowrap shrink-0"
+              >
+                {lang === 'FA' ? 'جزئیات منو ←' : 'Menu details →'}
+              </a>
+            </div>
+          </div>
+
+          {/* Card 2: Number of Guests */}
+          <div className="rounded-2xl bg-white border border-[#D4AF37]/50 p-5 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-2 text-xs text-[#6E5A4F]">
+                <span className="font-semibold text-[#2C1E16]">
+                  {lang === 'FA' ? 'تعداد مهمانان مراسم' : 'Number of Guests'}
+                </span>
+                <Users className="w-4 h-4 text-[#9A7411] shrink-0" />
+              </div>
+
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="font-mono-num tabular-nums text-2xl sm:text-3xl font-black text-[#2C1E16] tracking-tight">
+                  {formatNumberLocale(guestCount, lang)}
+                </span>
+                <span className="text-xs font-semibold text-[#6E5A4F]">
+                  {lang === 'FA' ? 'نفر مهمان دعوت‌شده' : 'invited guests'}
+                </span>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-[#6E5A4F]">
+                <span className="font-medium text-[#2C1E16]">
+                  {servingStyle.title[lang] || servingStyle.title.FA}
+                </span>
+                <span aria-hidden="true">·</span>
+                <span>
+                  {selectedFlashDate
+                    ? selectedFlashDate.persianDate
+                    : lang === 'FA'
+                      ? 'پاییز ۱۴۰۵'
+                      : 'Autumn 2026'}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-[#E6DFD3] flex items-center justify-between gap-2">
+              <span className="text-xs text-[#6E5A4F]">
+                {lang === 'FA' ? 'تنظیم سریع ظرفیت:' : 'Quick adjust:'}
+              </span>
+              <div className="flex items-center gap-1 font-mono-num tabular-nums">
+                <button
+                  type="button"
+                  onClick={() => setGuestCount((prev) => Math.max(50, prev - 50))}
+                  className="px-2.5 py-1 rounded-lg bg-[#FAF7F2] hover:bg-[#FFF0F3] text-[#2C1E16] border border-[#E6DFD3] text-xs font-bold transition cursor-pointer whitespace-nowrap"
+                  aria-label="Decrease guests by 50"
+                >
+                  -50
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGuestCount(300)}
+                  className="px-2.5 py-1 rounded-lg bg-[#FAF7F2] hover:bg-[#FFF0F3] text-[#2C1E16] border border-[#E6DFD3] text-xs font-bold transition cursor-pointer whitespace-nowrap"
+                >
+                  {formatNumberLocale(300, lang)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGuestCount((prev) => Math.min(1000, prev + 50))}
+                  className="px-2.5 py-1 rounded-lg bg-[#FAF7F2] hover:bg-[#FFF0F3] text-[#2C1E16] border border-[#E6DFD3] text-xs font-bold transition cursor-pointer whitespace-nowrap"
+                  aria-label="Increase guests by 50"
+                >
+                  +50
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Remaining Installment Balance */}
+          <div className="rounded-2xl bg-white border border-[#D4AF37]/50 p-5 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-2 text-xs text-[#6E5A4F]">
+                <span className="font-semibold text-[#2C1E16]">
+                  {lang === 'FA'
+                    ? 'مانده اقساط چک صیادی بنفش'
+                    : 'Remaining Installment Balance'}
+                </span>
+                <FileCheck2 className="w-4 h-4 text-emerald-700 shrink-0" />
+              </div>
+
+              <div className="mt-2 font-mono-num tabular-nums text-2xl sm:text-3xl font-black text-emerald-800 tracking-tight">
+                {formatMoney(
+                  calculation.remainingForChecksToman,
+                  currency,
+                  lang,
+                  liveRates,
+                )}
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-[#6E5A4F] font-mono-num tabular-nums">
+                <span>
+                  {formatNumberLocale(installmentMonths, lang)}{' '}
+                  {lang === 'FA' ? 'چک ×' : 'checks ×'}{' '}
+                  <strong className="text-[#2C1E16]">
+                    {formatMoney(calculation.eachCheckToman, currency, lang, liveRates)}
+                  </strong>
+                </span>
+                <span aria-hidden="true">·</span>
+                <span>
+                  {lang === 'FA' ? 'پیش‌پرداخت:' : 'Down:'}{' '}
+                  {formatMoney(calculation.downPaymentToman, currency, lang, liveRates)}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-[#E6DFD3] flex items-center justify-between gap-2">
+              <span className="text-xs text-[#6E5A4F] whitespace-nowrap">
+                {lang === 'FA' ? 'تعداد اقساط:' : 'Installments:'}
+              </span>
+              <div className="flex items-center gap-1 font-mono-num tabular-nums">
+                {[3, 6, 9, 12].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setInstallmentMonths(m)}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                      installmentMonths === m
+                        ? 'bg-[#2C1E16] text-[#E6C258]'
+                        : 'bg-[#FAF7F2] text-[#2C1E16] border border-[#E6DFD3] hover:border-[#D4AF37]'
+                    }`}
+                  >
+                    {formatNumberLocale(m, lang)} {lang === 'FA' ? 'ماهه' : 'mo'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* MAIN CONTENT CONTAINER */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6">
         {/* 2.2. ALWAYS-VISIBLE 1-CLICK ACCESSIBILITY (معلولان) & ADHD FOCUS BAR */}

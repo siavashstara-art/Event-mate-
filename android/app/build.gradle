@@ -54,8 +54,6 @@ tasks.register("autoProvisionReleaseKeystore") {
     }
 }
 
-preBuild.dependsOn("autoProvisionReleaseKeystore")
-
 android {
     namespace "com.eventmate.vip"
     compileSdk 34

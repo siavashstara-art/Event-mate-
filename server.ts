@@ -379,7 +379,7 @@ app.post('/api/visitors/sales', (req, res) => {
       licenseTierTitle: String(licenseTierTitle).slice(0, 120),
       totalSaleToman: cleanSaleAmount,
       commission25Toman,
-      payoutStatus: 'SETTLED_SHEBA',
+      payoutStatus: 'PENDING_SHEBA',
       soldAt: new Date().toISOString(),
     };
 
@@ -387,7 +387,7 @@ app.post('/api/visitors/sales', (req, res) => {
     res.status(201).json({
       success: true,
       sale: record,
-      message: `فروش لایسنس «${record.hallName}» ثبت شد و ۲۵٪ پورسانت نقدی (${commission25Toman.toLocaleString('fa-IR')} تومان) به شبا ${record.visitorSheba} اختصاص یافت.`,
+      message: `🔔 فروش لایسنس «${record.hallName}» با کد معرف ${record.visitorCode} ثبت شد! اعلان واریز ۲۵٪ پورسانت (${commission25Toman.toLocaleString('fa-IR')} تومان) به شبا ${record.visitorSheba} در کارتابل مدیر اصلی قرار گرفت.`,
     });
   } catch (error) {
     res.status(500).json({
@@ -395,6 +395,20 @@ app.post('/api/visitors/sales', (req, res) => {
       error: error instanceof Error ? error.message : 'Sale registration error',
     });
   }
+});
+
+app.post('/api/visitors/sales/:id/settle', (req, res) => {
+  const {id} = req.params;
+  const target = soldLicenses.find((s) => s.id === id);
+  if (!target) {
+    return res.status(404).json({success: false, error: 'Sale record not found'});
+  }
+  target.payoutStatus = 'SETTLED_SHEBA';
+  return res.json({
+    success: true,
+    sale: target,
+    message: `✅ واریز ۲۵٪ پورسانت (${target.commission25Toman.toLocaleString('fa-IR')} تومان) به شبا ${target.visitorSheba} توسط مدیر اصلی تایید و تسویه شد.`,
+  });
 });
 
 // 4.5. Sayyadi Check Color & Central Bank Credit Inquiry Simulator API

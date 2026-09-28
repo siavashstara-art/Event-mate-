@@ -84,6 +84,8 @@ export const WhiteLabelAndVisitorSuite: React.FC<WhiteLabelAndVisitorSuiteProps>
   const [soldLicenses, setSoldLicenses] = useState<SoldLicenseEntry[]>([]);
   const [registeringSale, setRegisteringSale] = useState(false);
   const [saleSuccessBanner, setSaleSuccessBanner] = useState<string | null>(null);
+  const [generatingTestCode, setGeneratingTestCode] = useState(false);
+  const [ownerAdminWhatsapp, setOwnerAdminWhatsapp] = useState('09120000000');
 
   useEffect(() => {
     if (mode !== 'full-pitch-and-invitation') return;
@@ -98,6 +100,89 @@ export const WhiteLabelAndVisitorSuite: React.FC<WhiteLabelAndVisitorSuiteProps>
         // Fallback if offline
       });
   }, [mode]);
+
+  const handleGenerateTestReferralCode = async () => {
+    setGeneratingTestCode(true);
+    try {
+      const res = await fetch('/api/visitors/register', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          fullName: visitorName || 'سفیر آزمایشی',
+          phone: visitorPhone || '09121112233',
+          city: customBrand.city || 'تهران',
+          commissionRate: 25,
+          estimatedMonthlyToman: selectedLicensePriceToman * 0.25 * monthlySalesTarget,
+        }),
+      });
+      const data = await res.json();
+      const newCode =
+        data?.visitor?.referralCode || `EVM-VIP-${Math.floor(1000 + Math.random() * 9000)}`;
+      setVisitorCode(newCode);
+      setSaleSuccessBanner(
+        `🎯 کد معرف جدید «${newCode}» با موفقیت صادر شد و در لینک اختصاصی (?ref=${newCode}) و دعوت‌نامه طلاکوب قرار گرفت!`,
+      );
+    } catch {
+      const fallbackCode = `EVM-VIP-${Math.floor(1000 + Math.random() * 9000)}`;
+      setVisitorCode(fallbackCode);
+      setSaleSuccessBanner(
+        `🎯 کد معرف جدید «${fallbackCode}» صادر شد و آماده تست فروش است.`,
+      );
+    } finally {
+      setGeneratingTestCode(false);
+    }
+  };
+
+  const handleSettlePayoutByOwner = async (saleId: string) => {
+    try {
+      const res = await fetch(`/api/visitors/sales/${saleId}/settle`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data?.sale) {
+        setSoldLicenses((prev) =>
+          prev.map((item) => (item.id === saleId ? data.sale : item)),
+        );
+        setSaleSuccessBanner(
+          data.message || '✅ واریز ۲۵٪ پورسانت ویزیتور توسط شما (مدیر اصلی) تایید و تسویه شد.',
+        );
+        return;
+      }
+    } catch {
+      // Fallback
+    }
+    setSoldLicenses((prev) =>
+      prev.map((item) =>
+        item.id === saleId ? {...item, payoutStatus: 'SETTLED_SHEBA'} : item,
+      ),
+    );
+    setSaleSuccessBanner('✅ واریز ۲۵٪ پورسانت به شبا توسط مدیر اصلی تایید و تسویه شد.');
+  };
+
+  const handleNotifyOwnerOnWhatsApp = () => {
+    const comm25 = Math.round(selectedLicensePriceToman * 0.25);
+    const owner75 = selectedLicensePriceToman - comm25;
+    const cleanOwnerPhone = ownerAdminWhatsapp.replace(/[^0-9]/g, '').replace(/^0/, '98');
+    const text = `🔔 *اعلان رسمی فروش لایسنس تالار — درخواست تسویه ۲۵٪ پورسانت ویزیتور*
+━━━━━━━━━━━━━━━━━━━━
+👤 *نام ویزیتور / سفیر فروش:* ${visitorName}
+🔑 *کد معرف ثبت‌شده در سیستم:* ${visitorCode}
+📞 *تلفن ویزیتور:* ${visitorPhone}
+
+🏛️ *نام تالار خریدار:* ${customBrand.hallName} (${customBrand.city})
+🔗 *لینک ایزوله تحویل‌شده به تالار:* ?hall=${customBrand.tenantSlug || 'royal-palace'}&ref=${visitorCode}
+
+💰 *مبلغ کل لایسنس فروخته‌شده:* ${formatMoney(selectedLicensePriceToman, currency, lang)}
+👑 *سهم خالص ۷۵٪ مدیریت اصلی:* ${formatMoney(owner75, currency, lang)}
+💎 *سهم ۲۵٪ پورسانت نقدی ویزیتور:* ${formatMoney(comm25, currency, lang)}
+
+🏦 *شماره شبا ویزیتور جهت واریز پایا/ساتنا:*
+${visitorSheba}
+━━━━━━━━━━━━━━━━━━━━
+لطفاً پس از تایید واریزی تالاردار، مبلغ ۲۵٪ پورسانت را به شبای بالا حواله فرمایید.`;
+    const url = `https://wa.me/${cleanOwnerPhone}?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   const handleRecordLicenseSale = async () => {
     setRegisteringSale(true);
@@ -133,7 +218,7 @@ export const WhiteLabelAndVisitorSuite: React.FC<WhiteLabelAndVisitorSuiteProps>
         setSoldLicenses((prev) => [data.sale, ...prev]);
         setSaleSuccessBanner(
           data.message ||
-            `✅ لایسنس «${customBrand.hallName}» ثبت شد و ۲۵٪ پورسانت نقدی به شبا ${visitorSheba} منظور گردید!`,
+            `🔔 فروش لایسنس «${customBrand.hallName}» با کد ${visitorCode} در جدول زیر ثبت شد و در انتظار تایید واریز شبا (${visitorSheba}) توسط مدیر اصلی است!`,
         );
       }
     } catch {
@@ -149,12 +234,12 @@ export const WhiteLabelAndVisitorSuite: React.FC<WhiteLabelAndVisitorSuiteProps>
         licenseTierTitle: tierTitle,
         totalSaleToman: selectedLicensePriceToman,
         commission25Toman: comm,
-        payoutStatus: 'SETTLED_SHEBA',
+        payoutStatus: 'PENDING_SHEBA',
         soldAt: new Date().toISOString(),
       };
       setSoldLicenses((prev) => [fallbackSale, ...prev]);
       setSaleSuccessBanner(
-        `✅ فروش لایسنس ثبت شد! سهم ۲۵٪ شما (${formatMoney(comm, currency, lang)}) برای واریز به شبا ${visitorSheba} تایید گردید.`,
+        `🔔 فروش لایسنس در جدول زیر ثبت شد! اکنون می‌توانید از جدول پایین دکمه «تایید واریز ۲۵٪ توسط مدیر اصلی» را برای تمرین بزنید.`,
       );
     } finally {
       setRegisteringSale(false);
@@ -883,6 +968,34 @@ ${buildPersonalizedDemoUrl()}
                 </div>
               </div>
 
+              {/* 1-Click Referral Code Generator & Practice Box */}
+              <div className="p-3 rounded-2xl bg-[#FFF0F3] border border-[#E11D48]/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-extrabold text-[#2C1E16] flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-[#E11D48]" />
+                    <span>کد اختصاصی معرف (ویزیتور) — قابل ویرایش یا تولید خودکار:</span>
+                  </label>
+                  <span className="text-[10px] font-bold text-[#E11D48]">تست و تمرین صدور کد</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={visitorCode}
+                    onChange={(e) => setVisitorCode(e.target.value.toUpperCase())}
+                    className="flex-1 px-3 py-2 rounded-xl bg-white border border-[#E11D48] font-mono-num font-black text-xs text-[#2C1E16]"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGenerateTestReferralCode}
+                    disabled={generatingTestCode}
+                    className="px-3 py-2 rounded-xl bg-[#E11D48] text-white font-extrabold text-xs hover:bg-rose-700 transition shrink-0 cursor-pointer"
+                  >
+                    {generatingTestCode ? 'در حال تولید...' : '🎲 صدور کد معرف جدید'}
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block font-bold text-[#2C1E16] mb-1">
                   پکیج نرم‌افزاری پیشنهادی برای فروش به تالار:
@@ -970,6 +1083,19 @@ ${buildPersonalizedDemoUrl()}
                   placeholder="IR820540102680020817909002"
                   className="w-full px-3 py-2 rounded-xl bg-[#FAF7F2] border border-[#D4AF37] font-mono-num font-bold text-xs text-[#2C1E16]"
                 />
+                <div>
+                  <label className="block font-bold text-[#2C1E16] text-[11px] mb-1">
+                    شماره واتساپ شما (صاحب اصلی برنامه) جهت دریافت فوری فیش فروش ویزیتور:
+                  </label>
+                  <input
+                    type="tel"
+                    dir="ltr"
+                    value={ownerAdminWhatsapp}
+                    onChange={(e) => setOwnerAdminWhatsapp(e.target.value)}
+                    placeholder="09120000000"
+                    className="w-full px-3 py-1.5 rounded-xl bg-[#FAF7F2] border border-[#E6DFD3] font-mono-num font-bold text-xs text-[#2C1E16]"
+                  />
+                </div>
                 <div className="flex items-center justify-between text-[11px] text-[#6E5A4F]">
                   <span>لینک اختصاصی ویزیتور:</span>
                   <code className="font-mono-num font-bold text-[#E11D48]">
@@ -983,8 +1109,16 @@ ${buildPersonalizedDemoUrl()}
                   className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-extrabold text-xs shadow hover:brightness-105 transition cursor-pointer"
                 >
                   {registeringSale
-                    ? 'در حال ثبت لایسنس و حواله ۲۵٪ شبا...'
-                    : `ثبت فروش لایسنس «${customBrand.hallName}» و دریافت ۲۵٪ پورسانت (${formatMoney(profitPerSaleToman, currency, lang)})`}
+                    ? 'در حال ثبت لایسنس در کارتابل مدیریت...'
+                    : `۱. ثبت فروش لایسنس «${customBrand.hallName}» در کارتابل مدیریت (${formatMoney(profitPerSaleToman, currency, lang)})`}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNotifyOwnerOnWhatsApp}
+                  className="w-full py-2.5 rounded-xl bg-[#2C1E16] text-[#E6C258] border border-[#C59B27] font-extrabold text-xs hover:bg-[#3E2723] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>۲. ارسال فوری رسید فروش و شماره شبا به واتساپ صاحب برنامه</span>
                 </button>
                 {saleSuccessBanner && (
                   <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-950 text-[11px] font-bold">
@@ -1058,10 +1192,10 @@ ${buildPersonalizedDemoUrl()}
           <div className="bg-gradient-to-r from-[#2C1E16] via-[#3E2723] to-[#2C1E16] text-[#FAF7F2] px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 font-extrabold text-sm text-[#E6C258]">
               <Landmark className="w-4 h-4 text-emerald-400" />
-              <span>گزارش مالی زنده لایسنس‌های فروخته‌شده به تالارها و تسویه ۲۵٪ پورسانت شبا (Visitor Hub Ledger)</span>
+              <span>کارتابل مدیر اصلی برنامه: گزارش زنده لایسنس‌های فروخته‌شده توسط ویزیتورها و تایید واریز ۲۵٪ شبا</span>
             </div>
             <div className="text-xs font-mono-num text-emerald-300 font-bold">
-              مجموع پورسانت ۲۵٪ تسویه‌شده:{' '}
+              مجموع پورسانت ۲۵٪ ثبت‌شده:{' '}
               {formatMoney(
                 soldLicenses.reduce((acc, s) => acc + s.commission25Toman, 0),
                 currency,
@@ -1079,12 +1213,19 @@ ${buildPersonalizedDemoUrl()}
                   <th className="py-3 px-4 text-start font-extrabold">ویزیتور و کد سفیر</th>
                   <th className="py-3 px-4 text-start font-extrabold">مبلغ کل لایسنس</th>
                   <th className="py-3 px-4 text-start font-extrabold">۲۵٪ پورسانت نقدی ویزیتور</th>
-                  <th className="py-3 px-4 text-start font-extrabold">شماره شبا و وضعیت واریز</th>
+                  <th className="py-3 px-4 text-start font-extrabold">شماره شبا و عملیات تایید مدیر اصلی</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E6DFD3]">
                 {soldLicenses.map((sale) => (
-                  <tr key={sale.id} className="hover:bg-[#FFFDF9]">
+                  <tr
+                    key={sale.id}
+                    className={
+                      sale.payoutStatus === 'PENDING_SHEBA'
+                        ? 'bg-amber-50/70 hover:bg-amber-50'
+                        : 'hover:bg-[#FFFDF9]'
+                    }
+                  >
                     <td className="py-3 px-4 font-black text-[#2C1E16]">
                       {sale.hallName}
                       <div className="text-[10px] text-[#6E5A4F] font-normal">{sale.licenseTierTitle}</div>
@@ -1094,7 +1235,7 @@ ${buildPersonalizedDemoUrl()}
                     </td>
                     <td className="py-3 px-4">
                       <div className="font-bold text-[#2C1E16]">{sale.visitorName}</div>
-                      <div className="font-mono-num text-[10px] text-[#E11D48]">?ref={sale.visitorCode}</div>
+                      <div className="font-mono-num text-[10px] text-[#E11D48] font-bold">?ref={sale.visitorCode}</div>
                     </td>
                     <td className="py-3 px-4 font-mono-num font-bold text-[#2C1E16]">
                       {formatMoney(sale.totalSaleToman, currency, lang)}
@@ -1104,10 +1245,25 @@ ${buildPersonalizedDemoUrl()}
                     </td>
                     <td className="py-3 px-4">
                       <div className="font-mono-num text-[11px] font-bold text-[#2C1E16]">{sale.visitorSheba}</div>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-[10px] font-extrabold mt-0.5">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        <span>واریز قطعی ۲۵٪ به شبا</span>
-                      </span>
+                      {sale.payoutStatus === 'PENDING_SHEBA' ? (
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-extrabold">
+                            🔔 فروش جدید (در انتظار واریز شما)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleSettlePayoutByOwner(sale.id)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-extrabold hover:bg-emerald-700 transition cursor-pointer shadow-sm"
+                          >
+                            💳 تایید واریز ۲۵٪ به شبا (مدیر اصلی)
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-[10px] font-extrabold mt-0.5">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>واریز قطعی ۲۵٪ به شبا انجام شد</span>
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
