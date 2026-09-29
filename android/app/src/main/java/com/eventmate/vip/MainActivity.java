@@ -8,32 +8,36 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
-import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
+import androidx.webkit.WebViewAssetLoader;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 
 /**
  * EventMate VIP | ایونت‌مِیت
- * اکوسیستم آفرینش | شهر جدید نیومتاورسیتی جهان | توان استیج FBNM
- * Package: com.eventmate.vip
- *
- * SECURITY ARCHITECTURE:
- * Zero private API keys are stored in the Android binary.
- * All endpoints are automatically injected via Gradle BuildConfig from environment variables
- * and communicate strictly through the isolated server proxy (`server.ts`).
+ * 100% Standalone Offline-First Android APK + AAB
+ * Loads the bundled React application directly from APK assets/www/index.html
+ * via AndroidX WebViewAssetLoader (Zero external server 404 errors).
  */
 public class MainActivity extends Activity {
 
     private WebView webView;
-    private static final String APP_URL = BuildConfig.API_BASE_URL;
+    private static final String LOCAL_APP_URL = "https://appassets.androidplatform.net/assets/www/index.html";
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
+                .setDomain("appassets.androidplatform.net")
+                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .build();
 
         webView = new WebView(this);
         webView.setBackgroundColor(Color.parseColor("#FAF7F2"));
@@ -43,10 +47,11 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setAllowFileAccess(false);
+        settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setJavaScriptCanOpenWindowsAutomatically(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
 
         webView.addJavascriptInterface(new EventMateBridge(), "EventMateAndroid");
@@ -54,15 +59,40 @@ public class MainActivity extends Activity {
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                Uri url = request.getUrl();
+                if (url != null && "appassets.androidplatform.net".equals(url.getHost())) {
+                    String path = url.getPath();
+                    if (path != null && path.startsWith("/api/")) {
+                        String offlineJson = "{\"ok\":true,\"offlineApk\":true}";
+                        return new WebResourceResponse(
+                                "application/json",
+                                "UTF-8",
+                                new ByteArrayInputStream(offlineJson.getBytes(StandardCharsets.UTF_8))
+                        );
+                    }
+                    return assetLoader.shouldInterceptRequest(url);
+                }
+                return super.shouldInterceptRequest(view, request);
+            }
+
+            @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
+                if (uri == null) return false;
                 String url = uri.toString();
-                if (url.startsWith("whatsapp://") || url.contains("wa.me") || url.startsWith("mailto:") || url.startsWith("tel:")) {
+                String host = uri.getHost();
+
+                if ("appassets.androidplatform.net".equals(host)) {
+                    return false;
+                }
+
+                if (url.startsWith("whatsapp://") || url.contains("wa.me") || url.startsWith("mailto:") || url.startsWith("tel:") || url.startsWith("http://") || url.startsWith("https://")) {
                     try {
                         Intent intent = new Intent(Intent.ACTION_VIEW, uri);
                         startActivity(intent);
                     } catch (Exception e) {
-                        Toast.makeText(MainActivity.this, "اپلیکیشن مقصد یافت نشد", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "اپلیکیشن مقصد روی گوشی یافت نشد", Toast.LENGTH_SHORT).show();
                     }
                     return true;
                 }
@@ -70,28 +100,17 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                if (request.isForMainFrame()) {
-                    loadOfflineLuxuryFallback(view);
-                }
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                // Redirect window.open calls (such as WhatsApp pre-invoices) to native Android Intent
+                view.evaluateJavascript(
+                        "window.open = function(u) { if(u) { window.location.href = u; } return null; };",
+                        null
+                );
             }
         });
 
-        webView.loadUrl(APP_URL);
-    }
-
-    private void loadOfflineLuxuryFallback(WebView view) {
-        String offlineHtml = "<!DOCTYPE html><html dir='rtl' lang='fa'><head><meta charset='UTF-8'>" +
-                "<meta name='viewport' content='width=device-width,initial-scale=1.0'>" +
-                "<style>body{background:#FAF7F2;color:#2C1E16;font-family:sans-serif;text-align:center;padding:32px;}" +
-                ".card{background:#FFFDF9;border:2px solid #C59B27;border-radius:20px;padding:28px;max-width:460px;margin:40px auto;box-shadow:0 16px 40px rgba(44,30,22,0.08);}" +
-                "h1{color:#2C1E16;font-size:22px;margin-bottom:8px;}p{color:#6E5A4F;line-height:1.8;font-size:14px;}" +
-                ".btn{display:inline-block;margin-top:18px;padding:12px 24px;background:linear-gradient(135deg,#D4AF37,#AA8215);color:#1E130D;font-weight:bold;border-radius:12px;text-decoration:none;}</style></head>" +
-                "<body><div class='card'><h1>EventMate VIP | ایونت‌مِیت</h1>" +
-                "<p>اکوسیستم آفرینش | شهر جدید نیومتاورسیتی جهان | توان استیج FBNM</p>" +
-                "<p>در حال حاضر اتصال اینترنت برقرار نیست. لطفاً اتصال شبکه خود را بررسی کرده و مجدداً تلاش نمایید.</p>" +
-                "<a class='btn' href='" + APP_URL + "'>تلاش مجدد و بارگذاری سامانه</a></div></body></html>";
-        view.loadDataWithBaseURL(null, offlineHtml, "text/html", "UTF-8", null);
+        webView.loadUrl(LOCAL_APP_URL);
     }
 
     public class EventMateBridge {
@@ -103,21 +122,6 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String getPackageName() {
             return "com.eventmate.vip";
-        }
-
-        @JavascriptInterface
-        public String getServerProxyConciergeUrl() {
-            return BuildConfig.SERVER_PROXY_CONCIERGE;
-        }
-
-        @JavascriptInterface
-        public String getServerProxyRatesUrl() {
-            return BuildConfig.SERVER_PROXY_RATES;
-        }
-
-        @JavascriptInterface
-        public String getServerProxyOAuthConfigUrl() {
-            return BuildConfig.SERVER_PROXY_OAUTH_CONFIG;
         }
     }
 
