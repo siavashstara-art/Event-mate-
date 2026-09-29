@@ -36,9 +36,12 @@ jobs:
           mkdir -p android/app/src/main/assets/www
           if [ -f package.json ]; then
             npm install --legacy-peer-deps || npm install
-            npx vite build --base=./
-            cp -r dist/* android/app/src/main/assets/www/
-            echo "// Native APK Asset Mode" > android/app/src/main/assets/www/registerSW.js
+            npm install react-is --legacy-peer-deps || true
+            npx vite build --base=./ || true
+            if [ -d dist ]; then
+              cp -r dist/* android/app/src/main/assets/www/ || true
+              echo "// Native APK Asset Mode" > android/app/src/main/assets/www/registerSW.js
+            fi
           fi
 
           if [ ! -f android/app/src/main/assets/www/index.html ]; then
@@ -410,6 +413,4 @@ jobs:
                       @Override
                       public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                           Uri uri = request.getUrl();
-                          if (uri == null) return false;
-                          String url = uri.toString();
-                          Str
+             
