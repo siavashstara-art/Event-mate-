@@ -2,415 +2,88 @@ name: EventMate VIP — Signed APK & AAB Auto-Release
 
 on:
   push:
-    branches:
-      - main
-      - master
-    tags:
-      - 'v*'
+    branches: [ main, master ]
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: 'Release tag (e.g., v1.1.0)'
-        required: false
-        default: 'v1.1.0'
 
 permissions:
   contents: write
 
 jobs:
   build-signed-apk-and-aab:
-    name: Build & Sign Standalone APK + AAB (GitHub, Myket, Cafe Bazaar)
+    name: Build & Sign Standalone APK + AAB
     runs-on: ubuntu-latest
 
     steps:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 2. Setup Node.js 20 & Build Embedded Web Bundle
+      - name: 2. Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: 3. Compile React App into Android APK Assets (100% Offline-Ready)
+      - name: 3. Build React Web App into Android Assets
         run: |
           mkdir -p android/app/src/main/assets/www
-          if [ -f package.json ]; then
-            npm install --legacy-peer-deps || npm install
-            npm install react-is --legacy-peer-deps || true
-            npx vite build --base=./ || true
-            if [ -d dist ]; then
-              cp -r dist/* android/app/src/main/assets/www/ || true
-              echo "// Native APK Asset Mode" > android/app/src/main/assets/www/registerSW.js
-            fi
-          fi
+          npm install --legacy-peer-deps || npm install
+          npm install react-is --legacy-peer-deps || true
+          npx vite build --base=./
+          cp -r dist/* android/app/src/main/assets/www/
+          echo "// Native APK Asset Mode" > android/app/src/main/assets/www/registerSW.js
 
-          if [ ! -f android/app/src/main/assets/www/index.html ]; then
-            cat << 'HTML_EOF' > android/app/src/main/assets/www/index.html
-          <!DOCTYPE html>
-          <html lang="fa" dir="rtl">
-          <head>
-            <meta charset="UTF-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-            <title>EventMate VIP | ایونت‌مِیت</title>
-            <style>
-              * { box-sizing: border-box; font-family: Tahoma, system-ui, -apple-system, sans-serif; }
-              body { margin: 0; background: #FAF7F2; color: #2C1E16; padding: 16px; }
-              .header { background: linear-gradient(135deg, #2C1E16, #4A1525); color: #FAF7F2; padding: 20px; border-radius: 20px; border: 2px solid #D4AF37; margin-bottom: 16px; }
-              .badge { display: inline-block; background: #D4AF37; color: #1E130D; padding: 4px 10px; border-radius: 8px; font-weight: bold; font-size: 12px; margin-bottom: 8px; }
-              .card { background: #FFFDF9; border: 2px solid #E6DFD3; border-radius: 20px; padding: 18px; margin-bottom: 16px; box-shadow: 0 8px 24px rgba(44,30,22,0.06); }
-              .card-gold { border-color: #D4AF37; }
-              .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 16px; }
-              .stat { background: #FFFDF9; border: 2px solid #D4AF37; border-radius: 16px; padding: 14px; }
-              .stat-title { font-size: 12px; color: #6E5A4F; font-weight: bold; }
-              .stat-val { font-size: 22px; font-weight: 900; color: #E11D48; margin: 6px 0; }
-              label { display: block; font-size: 13px; font-weight: bold; margin: 10px 0 4px; }
-              input, select { width: 100%; padding: 10px 12px; border-radius: 12px; border: 1.5px solid #D4AF37; background: #fff; font-size: 14px; }
-              .btn { display: inline-block; width: 100%; text-align: center; padding: 14px; border-radius: 14px; border: none; font-weight: 900; font-size: 14px; cursor: pointer; margin-top: 10px; text-decoration: none; }
-              .btn-wa { background: #059669; color: #fff; }
-              .menu-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #E6DFD3; border-radius: 12px; margin-bottom: 8px; cursor: pointer; }
-              .menu-item.active { border-color: #E11D48; background: #FFF1F2; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <span class="badge">نسخه اختصاصی اندروید VIP</span>
-              <h1 id="hallTitle" style="margin:4px 0;font-size:22px;">کاخ‌تالار و عمارت رویال پالاس</h1>
-              <p style="margin:0;font-size:12px;color:#E6C258;">سامانه هوشمند منوساز زنده، محاسبه‌گر چک صیادی بنفش و پیش‌فاکتور آنی واتساپ</p>
-            </div>
-
-            <div class="grid">
-              <div class="stat">
-                <div class="stat-title">هزینه کل تخمینی مراسم</div>
-                <div class="stat-val" id="totalCostDisplay">۲۹۴,۰۰۰,۰۰۰ تومان</div>
-                <div style="font-size:11px;color:#6E5A4F;" id="perGuestDisplay">هر نفر: ۹۸۰,۰۰۰ تومان</div>
-              </div>
-              <div class="stat">
-                <div class="stat-title">تعداد مهمانان مراسم</div>
-                <div class="stat-val" id="guestCountDisplay">۳۰۰ نفر</div>
-                <input type="range" id="guestRange" min="50" max="1000" step="10" value="300" oninput="recalc()" />
-              </div>
-              <div class="stat">
-                <div class="stat-title">مانده اقساط چک صیادی بنفش (۷۰٪)</div>
-                <div class="stat-val" id="installmentDisplay">۲۰۵,۸۰۰,۰۰۰ تومان</div>
-                <div style="font-size:11px;color:#059669;font-weight:bold;" id="eachCheckDisplay">۶ فقره چک ماهانه: ۳۴,۳۰۰,۰۰۰ تومان</div>
-              </div>
-            </div>
-
-            <div class="card card-gold">
-              <h3 style="margin-top:0;">۱. شخصی‌سازی ۱۰ ثانیه‌ای نام تالار (ویژه ارائه حضوری ویزیتور)</h3>
-              <label>نام تالار یا باغ‌عمارت:</label>
-              <input type="text" id="hallInput" value="کاخ‌تالار و عمارت رویال پالاس" oninput="updateHall()" />
-              <label>شماره واتساپ مدیر تالار (جهت دریافت پیش‌فاکتور):</label>
-              <input type="text" id="phoneInput" value="09123456789" />
-              <label>تعداد اقساط چک صیادی بنفش:</label>
-              <select id="monthsSelect" onchange="recalc()">
-                <option value="3">۳ ماهه (بدون کارمزد)</option>
-                <option value="6" selected>۶ ماهه (چک صیادی بنفش)</option>
-                <option value="9">۹ ماهه (ویژه VIP)</option>
-                <option value="12">۱۲ ماهه (طرح طلایی)</option>
-              </select>
-            </div>
-
-            <div class="card">
-              <h3 style="margin-top:0;">۲. انتخاب منوی پذیرایی و تشریفات</h3>
-              <div class="menu-item active" onclick="toggleItem(this, 480000)">
-                <span>باقالی‌پلو با گردن گوسفندی ممتاز</span>
-                <b>۴۸۰,۰۰۰ تومان</b>
-              </div>
-              <div class="menu-item active" onclick="toggleItem(this, 500000)">
-                <span>چلوکباب سلطانی و جوجه زعفرانی</span>
-                <b>۵۰۰,۰۰۰ تومان</b>
-              </div>
-              <div class="menu-item" onclick="toggleItem(this, 220000)">
-                <span>بار فینگرفود گرم و سرد + آبمیوه طبیعی</span>
-                <b>۲۲۰,۰۰۰ تومان</b>
-              </div>
-              <div class="menu-item" onclick="toggleItem(this, 350000)">
-                <span>گل‌آرایی هلندی، آتش‌بازی سرد و موزیک زنده</span>
-                <b>۳۵۰,۰۰۰ تومان</b>
-              </div>
-              <button class="btn btn-wa" onclick="sendWhatsApp()">ارسال پیش‌فاکتور رسمی و برنامه چک صیادی در واتساپ</button>
-            </div>
-
-            <div class="card">
-              <h3 style="margin-top:0;">۳. پنل بازاریاب و پورسانت ۲۵٪ (لایسنس ۴۸ میلیون تومانی)</h3>
-              <p style="font-size:13px;line-height:1.7;">قیمت رسمی لایسنس اختصاصی تالار: <b>۴۸,۰۰۰,۰۰۰ تومان</b> | پورسانت نقدی هر فروش ویزیتور (۲۵٪): <b style="color:#059669;">۱۲,۰۰۰,۰۰۰ تومان</b></p>
-            </div>
-
-            <script>
-              function updateHall() {
-                document.getElementById('hallTitle').innerText = document.getElementById('hallInput').value || 'تالار اختصاصی VIP';
-              }
-              function toggleItem(el, price) {
-                el.classList.toggle('active');
-                recalc();
-              }
-              function recalc() {
-                var guests = parseInt(document.getElementById('guestRange').value || '300', 10);
-                var months = parseInt(document.getElementById('monthsSelect').value || '6', 10);
-                var items = document.querySelectorAll('.menu-item.active');
-                var perGuest = 0;
-                items.forEach(function(i) {
-                  if (i.innerText.indexOf('۴۸۰') > -1) perGuest += 480000;
-                  if (i.innerText.indexOf('۵۰۰') > -1) perGuest += 500000;
-                  if (i.innerText.indexOf('۲۲۰') > -1) perGuest += 220000;
-                  if (i.innerText.indexOf('۳۵۰') > -1) perGuest += 350000;
-                });
-                if (perGuest === 0) perGuest = 480000;
-                var total = guests * perGuest;
-                var remain = Math.round(total * 0.7);
-                var eachCheck = Math.round(remain / months);
-                document.getElementById('guestCountDisplay').innerText = guests.toLocaleString('fa-IR') + ' نفر';
-                document.getElementById('perGuestDisplay').innerText = 'هر نفر: ' + perGuest.toLocaleString('fa-IR') + ' تومان';
-                document.getElementById('totalCostDisplay').innerText = total.toLocaleString('fa-IR') + ' تومان';
-                document.getElementById('installmentDisplay').innerText = remain.toLocaleString('fa-IR') + ' تومان';
-                document.getElementById('eachCheckDisplay').innerText = months.toLocaleString('fa-IR') + ' فقره چک ماهانه: ' + eachCheck.toLocaleString('fa-IR') + ' تومان';
-              }
-              function sendWhatsApp() {
-                var hall = document.getElementById('hallInput').value;
-                var phone = document.getElementById('phoneInput').value.replace(/[^0-9]/g, '').replace(/^0/, '98');
-                var total = document.getElementById('totalCostDisplay').innerText;
-                var checks = document.getElementById('eachCheckDisplay').innerText;
-                var msg = '👑 پیش‌فاکتور رسمی ' + hall + '\nمبلغ کل: ' + total + '\nشرایط تقسیط صیادی: ' + checks;
-                window.location.href = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(msg);
-              }
-            </script>
-          </body>
-          </html>
-          HTML_EOF
-          fi
-
-      - name: 4. Set up JDK 17 (Temurin)
+      - name: 4. Set up JDK 17
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 5. Accept Android SDK Licenses (Non-Interactive CI Fix)
+      - name: 5. Accept Android SDK Licenses
         run: |
           export ANDROID_SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           mkdir -p "$ANDROID_SDK_ROOT/licenses"
           printf "\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c2829b004d1fee\n" > "$ANDROID_SDK_ROOT/licenses/android-sdk-license"
           printf "\n84831b9409646a918e30573bab4c9c91346d8abd\n504667f4c0de7af1a06de9f4b1727b84351f2910\n" > "$ANDROID_SDK_ROOT/licenses/android-sdk-preview-license"
-          if [ -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
-            yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
-          fi
 
-      - name: 6. Setup Gradle 8.7
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.7'
-
-      - name: 7. Write Standalone Offline-First Android Project Files
+      - name: 6. Write Android Project Files (Zero-Heredoc Base64)
         run: |
           mkdir -p android/app/src/main/java/com/eventmate/vip
-          mkdir -p android/app/src/main/res/values
+          echo "cGx1Z2luTWFuYWdlbWVudCB7CiAgICByZXBvc2l0b3JpZXMgeyBnb29nbGUoKTsgbWF2ZW5DZW50cmFsKCk7IGdyYWRsZVBsdWdpblBvcnRhbCgpIH0KfQpkZXBlbmRlbmN5UmVzb2x1dGlvbk1hbmFnZW1lbnQgewogICAgcmVwb3NpdG9yaWVzTW9kZS5zZXQoUmVwb3NpdG9yaWVzTW9kZS5GQUlMX09OX1BST0pFQ1RfUkVQT1MpCiAgICByZXBvc2l0b3JpZXMgeyBnb29nbGUoKTsgbWF2ZW5DZW50cmFsKCkgfQp9CnJvb3RQcm9qZWN0Lm5hbWUgPSAiRXZlbnRNYXRlVklQIgppbmNsdWRlICI6YXBwIgo=" | base64 -d > android/settings.gradle
+          echo "cGx1Z2lucyB7CiAgICBpZCAiY29tLmFuZHJvaWQuYXBwbGljYXRpb24iIHZlcnNpb24gIjguMy4wIiBhcHBseSBmYWxzZQp9Cg==" | base64 -d > android/build.gradle
+          echo "b3JnLmdyYWRsZS5qdm1hcmdzPS1YbXgyMDQ4bSAtRGZpbGUuZW5jb2Rpbmc9VVRGLTgKYW5kcm9pZC51c2VBbmRyb2lkWD10cnVlCmFuZHJvaWQubm9uVHJhbnNpdGl2ZVJDbGFzcz10cnVlCg==" | base64 -d > android/gradle.properties
+          echo "cGx1Z2lucyB7CiAgICBpZCAiY29tLmFuZHJvaWQuYXBwbGljYXRpb24iCn0KYW5kcm9pZCB7CiAgICBuYW1lc3BhY2UgImNvbS5ldmVudG1hdGUudmlwIgogICAgY29tcGlsZVNkayAzNAogICAgZGVmYXVsdENvbmZpZyB7CiAgICAgICAgYXBwbGljYXRpb25JZCAiY29tLmV2ZW50bWF0ZS52aXAiCiAgICAgICAgbWluU2RrIDI0CiAgICAgICAgdGFyZ2V0U2RrIDM0CiAgICAgICAgdmVyc2lvbkNvZGUgMgogICAgICAgIHZlcnNpb25OYW1lICIxLjEuMCIKICAgIH0KICAgIHNpZ25pbmdDb25maWdzIHsKICAgICAgICByZWxlYXNlIHsKICAgICAgICAgICAgc3RvcmVGaWxlIGZpbGUoIi4uL2V2ZW50bWF0ZS1yZWxlYXNlLmtleXN0b3JlIikKICAgICAgICAgICAgc3RvcmVQYXNzd29yZCAiRXZlbnRNYXRlVklQMjAyNiIKICAgICAgICAgICAga2V5QWxpYXMgImV2ZW50bWF0ZV92aXAiCiAgICAgICAgICAgIGtleVBhc3N3b3JkICJFdmVudE1hdGVWSVAyMDI2IgogICAgICAgICAgICBlbmFibGVWMVNpZ25pbmcgdHJ1ZQogICAgICAgICAgICBlbmFibGVWMlNpZ25pbmcgdHJ1ZQogICAgICAgICAgICBlbmFibGVWM1NpZ25pbmcgdHJ1ZQogICAgICAgIH0KICAgIH0KICAgIGJ1aWxkVHlwZXMgewogICAgICAgIHJlbGVhc2UgewogICAgICAgICAgICBzaWduaW5nQ29uZmlnIHNpZ25pbmdDb25maWdzLnJlbGVhc2UKICAgICAgICAgICAgbWluaWZ5RW5hYmxlZCBmYWxzZQogICAgICAgICAgICBzaHJpbmtSZXNvdXJjZXMgZmFsc2UKICAgICAgICB9CiAgICB9CiAgICBjb21waWxlT3B0aW9ucyB7CiAgICAgICAgc291cmNlQ29tcGF0aWJpbGl0eSBKYXZhVmVyc2lvbi5WRVJTSU9OXzE3CiAgICAgICAgdGFyZ2V0Q29tcGF0aWJpbGl0eSBKYXZhVmVyc2lvbi5WRVJTSU9OXzE3CiAgICB9Cn0KZGVwZW5kZW5jaWVzIHsKICAgIGltcGxlbWVudGF0aW9uICJhbmRyb2lkeC5hcHBjb21wYXQ6YXBwY29tcGF0OjEuNi4xIgogICAgaW1wbGVtZW50YXRpb24gImFuZHJvaWR4LndlYmtpdDp3ZWJraXQ6MS4xMC4wIgp9Cg==" | base64 -d > android/app/build.gradle
+          echo "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPG1hbmlmZXN0IHhtbG5zOmFuZHJvaWQ9Imh0dHA6Ly9zY2hlbWFzLmFuZHJvaWQuY29tL2Fway9yZXMvYW5kcm9pZCI+CiAgICA8dXNlcy1wZXJtaXNzaW9uIGFuZHJvaWQ6bmFtZT0iYW5kcm9pZC5wZXJtaXNzaW9uLklOVEVSTkVUIiAvPgogICAgPHVzZXMtcGVybWlzc2lvbiBhbmRyb2lkOm5hbWU9ImFuZHJvaWQucGVybWlzc2lvbi5BQ0NFU1NfTkVUV09SS19TVEFURSIgLz4KICAgIDxhcHBsaWNhdGlvbgogICAgICAgIGFuZHJvaWQ6YWxsb3dCYWNrdXA9InRydWUiCiAgICAgICAgYW5kcm9pZDpsYWJlbD0iRXZlbnRNYXRlIFZJUCB8INin24zZiNmG2KrigIzZhdmQ24zYqiIKICAgICAgICBhbmRyb2lkOnN1cHBvcnRzUnRsPSJ0cnVlIgogICAgICAgIGFuZHJvaWQ6dXNlc0NsZWFydGV4dFRyYWZmaWM9InRydWUiCiAgICAgICAgYW5kcm9pZDpoYXJkd2FyZUFjY2VsZXJhdGVkPSJ0cnVlIgogICAgICAgIGFuZHJvaWQ6dGhlbWU9IkBhbmRyb2lkOnN0eWxlL1RoZW1lLk1hdGVyaWFsLkxpZ2h0Lk5vQWN0aW9uQmFyIj4KICAgICAgICA8YWN0aXZpdHkKICAgICAgICAgICAgYW5kcm9pZDpuYW1lPSIuTWFpbkFjdGl2aXR5IgogICAgICAgICAgICBhbmRyb2lkOmV4cG9ydGVkPSJ0cnVlIgogICAgICAgICAgICBhbmRyb2lkOmNvbmZpZ0NoYW5nZXM9Im9yaWVudGF0aW9ufHNjcmVlblNpemV8a2V5Ym9hcmRIaWRkZW4iPgogICAgICAgICAgICA8aW50ZW50LWZpbHRlcj4KICAgICAgICAgICAgICAgIDxhY3Rpb24gYW5kcm9pZDpuYW1lPSJhbmRyb2lkLmludGVudC5hY3Rpb24uTUFJTiIgLz4KICAgICAgICAgICAgICAgIDxjYXRlZ29yeSBhbmRyb2lkOm5hbWU9ImFuZHJvaWQuaW50ZW50LmNhdGVnb3J5LkxBVU5DSEVSIiAvPgogICAgICAgICAgICA8L2ludGVudC1maWx0ZXI+CiAgICAgICAgPC9hY3Rpdml0eT4KICAgIDwvYXBwbGljYXRpb24+CjwvbWFuaWZlc3Q+Cg==" | base64 -d > android/app/src/main/AndroidManifest.xml
+          echo "cGFja2FnZSBjb20uZXZlbnRtYXRlLnZpcDsKCmltcG9ydCBhbmRyb2lkLmFubm90YXRpb24uU3VwcHJlc3NMaW50OwppbXBvcnQgYW5kcm9pZC5hcHAuQWN0aXZpdHk7CmltcG9ydCBhbmRyb2lkLmNvbnRlbnQuSW50ZW50OwppbXBvcnQgYW5kcm9pZC5ncmFwaGljcy5Db2xvcjsKaW1wb3J0IGFuZHJvaWQubmV0LlVyaTsKaW1wb3J0IGFuZHJvaWQub3MuQnVuZGxlOwppbXBvcnQgYW5kcm9pZC53ZWJraXQuSmF2YXNjcmlwdEludGVyZmFjZTsKaW1wb3J0IGFuZHJvaWQud2Via2l0LldlYkNocm9tZUNsaWVudDsKaW1wb3J0IGFuZHJvaWQud2Via2l0LldlYlJlc291cmNlUmVxdWVzdDsKaW1wb3J0IGFuZHJvaWQud2Via2l0LldlYlJlc291cmNlUmVzcG9uc2U7CmltcG9ydCBhbmRyb2lkLndlYmtpdC5XZWJTZXR0aW5nczsKaW1wb3J0IGFuZHJvaWQud2Via2l0LldlYlZpZXc7CmltcG9ydCBhbmRyb2lkLndlYmtpdC5XZWJWaWV3Q2xpZW50OwppbXBvcnQgYW5kcm9pZC53aWRnZXQuVG9hc3Q7CmltcG9ydCBhbmRyb2lkeC53ZWJraXQuV2ViVmlld0Fzc2V0TG9hZGVyOwppbXBvcnQgamF2YS5pby5CeXRlQXJyYXlJbnB1dFN0cmVhbTsKaW1wb3J0IGphdmEubmlvLmNoYXJzZXQuU3RhbmRhcmRDaGFyc2V0czsKCi8qKgogKiBFdmVudE1hdGUgVklQIHwg2KfbjNmI2YbYquKAjNmF2ZDbjNiqCiAqIDEwMCUgU3RhbmRhbG9uZSBPZmZsaW5lLUZpcnN0IEFuZHJvaWQgQVBLICsgQUFCCiAqIExvYWRzIHRoZSBidW5kbGVkIFJlYWN0IGFwcGxpY2F0aW9uIGRpcmVjdGx5IGZyb20gQVBLIGFzc2V0cy93d3cvaW5kZXguaHRtbAogKiB2aWEgQW5kcm9pZFggV2ViVmlld0Fzc2V0TG9hZGVyIChaZXJvIGV4dGVybmFsIHNlcnZlciA0MDQgZXJyb3JzKS4KICovCnB1YmxpYyBjbGFzcyBNYWluQWN0aXZpdHkgZXh0ZW5kcyBBY3Rpdml0eSB7CgogICAgcHJpdmF0ZSBXZWJWaWV3IHdlYlZpZXc7CiAgICBwcml2YXRlIHN0YXRpYyBmaW5hbCBTdHJpbmcgTE9DQUxfQVBQX1VSTCA9ICJodHRwczovL2FwcGFzc2V0cy5hbmRyb2lkcGxhdGZvcm0ubmV0L2Fzc2V0cy93d3cvaW5kZXguaHRtbCI7CgogICAgQFN1cHByZXNzTGludCgiU2V0SmF2YVNjcmlwdEVuYWJsZWQiKQogICAgQE92ZXJyaWRlCiAgICBwcm90ZWN0ZWQgdm9pZCBvbkNyZWF0ZShCdW5kbGUgc2F2ZWRJbnN0YW5jZVN0YXRlKSB7CiAgICAgICAgc3VwZXIub25DcmVhdGUoc2F2ZWRJbnN0YW5jZVN0YXRlKTsKCiAgICAgICAgZmluYWwgV2ViVmlld0Fzc2V0TG9hZGVyIGFzc2V0TG9hZGVyID0gbmV3IFdlYlZpZXdBc3NldExvYWRlci5CdWlsZGVyKCkKICAgICAgICAgICAgICAgIC5zZXREb21haW4oImFwcGFzc2V0cy5hbmRyb2lkcGxhdGZvcm0ubmV0IikKICAgICAgICAgICAgICAgIC5hZGRQYXRoSGFuZGxlcigiL2Fzc2V0cy8iLCBuZXcgV2ViVmlld0Fzc2V0TG9hZGVyLkFzc2V0c1BhdGhIYW5kbGVyKHRoaXMpKQogICAgICAgICAgICAgICAgLmJ1aWxkKCk7CgogICAgICAgIHdlYlZpZXcgPSBuZXcgV2ViVmlldyh0aGlzKTsKICAgICAgICB3ZWJWaWV3LnNldEJhY2tncm91bmRDb2xvcihDb2xvci5wYXJzZUNvbG9yKCIjRkFGN0YyIikpOwogICAgICAgIHNldENvbnRlbnRWaWV3KHdlYlZpZXcpOwoKICAgICAgICBXZWJTZXR0aW5ncyBzZXR0aW5ncyA9IHdlYlZpZXcuZ2V0U2V0dGluZ3MoKTsKICAgICAgICBzZXR0aW5ncy5zZXRKYXZhU2NyaXB0RW5hYmxlZCh0cnVlKTsKICAgICAgICBzZXR0aW5ncy5zZXREb21TdG9yYWdlRW5hYmxlZCh0cnVlKTsKICAgICAgICBzZXR0aW5ncy5zZXREYXRhYmFzZUVuYWJsZWQodHJ1ZSk7CiAgICAgICAgc2V0dGluZ3Muc2V0QWxsb3dGaWxlQWNjZXNzKHRydWUpOwogICAgICAgIHNldHRpbmdzLnNldEFsbG93Q29udGVudEFjY2Vzcyh0cnVlKTsKICAgICAgICBzZXR0aW5ncy5zZXRMb2FkV2l0aE92ZXJ2aWV3TW9kZSh0cnVlKTsKICAgICAgICBzZXR0aW5ncy5zZXRVc2VXaWRlVmlld1BvcnQodHJ1ZSk7CiAgICAgICAgc2V0dGluZ3Muc2V0SmF2YVNjcmlwdENhbk9wZW5XaW5kb3dzQXV0b21hdGljYWxseSh0cnVlKTsKICAgICAgICBzZXR0aW5ncy5zZXRNZWRpYVBsYXliYWNrUmVxdWlyZXNVc2VyR2VzdHVyZShmYWxzZSk7CgogICAgICAgIHdlYlZpZXcuYWRkSmF2YXNjcmlwdEludGVyZmFjZShuZXcgRXZlbnRNYXRlQnJpZGdlKCksICJFdmVudE1hdGVBbmRyb2lkIik7CiAgICAgICAgd2ViVmlldy5zZXRXZWJDaHJvbWVDbGllbnQobmV3IFdlYkNocm9tZUNsaWVudCgpKTsKCiAgICAgICAgd2ViVmlldy5zZXRXZWJWaWV3Q2xpZW50KG5ldyBXZWJWaWV3Q2xpZW50KCkgewogICAgICAgICAgICBAT3ZlcnJpZGUKICAgICAgICAgICAgcHVibGljIFdlYlJlc291cmNlUmVzcG9uc2Ugc2hvdWxkSW50ZXJjZXB0UmVxdWVzdChXZWJWaWV3IHZpZXcsIFdlYlJlc291cmNlUmVxdWVzdCByZXF1ZXN0KSB7CiAgICAgICAgICAgICAgICBVcmkgdXJsID0gcmVxdWVzdC5nZXRVcmwoKTsKICAgICAgICAgICAgICAgIGlmICh1cmwgIT0gbnVsbCAmJiAiYXBwYXNzZXRzLmFuZHJvaWRwbGF0Zm9ybS5uZXQiLmVxdWFscyh1cmwuZ2V0SG9zdCgpKSkgewogICAgICAgICAgICAgICAgICAgIFN0cmluZyBwYXRoID0gdXJsLmdldFBhdGgoKTsKICAgICAgICAgICAgICAgICAgICBpZiAocGF0aCAhPSBudWxsICYmIHBhdGguc3RhcnRzV2l0aCgiL2FwaS8iKSkgewogICAgICAgICAgICAgICAgICAgICAgICBTdHJpbmcgb2ZmbGluZUpzb24gPSAie1wib2tcIjp0cnVlLFwib2ZmbGluZUFwa1wiOnRydWV9IjsKICAgICAgICAgICAgICAgICAgICAgICAgcmV0dXJuIG5ldyBXZWJSZXNvdXJjZVJlc3BvbnNlKAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICJhcHBsaWNhdGlvbi9qc29uIiwKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAiVVRGLTgiLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIG5ldyBCeXRlQXJyYXlJbnB1dFN0cmVhbShvZmZsaW5lSnNvbi5nZXRCeXRlcyhTdGFuZGFyZENoYXJzZXRzLlVURl84KSkKICAgICAgICAgICAgICAgICAgICAgICAgKTsKICAgICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICAgICAgcmV0dXJuIGFzc2V0TG9hZGVyLnNob3VsZEludGVyY2VwdFJlcXVlc3QodXJsKTsKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIHJldHVybiBzdXBlci5zaG91bGRJbnRlcmNlcHRSZXF1ZXN0KHZpZXcsIHJlcXVlc3QpOwogICAgICAgICAgICB9CgogICAgICAgICAgICBAT3ZlcnJpZGUKICAgICAgICAgICAgcHVibGljIGJvb2xlYW4gc2hvdWxkT3ZlcnJpZGVVcmxMb2FkaW5nKFdlYlZpZXcgdmlldywgV2ViUmVzb3VyY2VSZXF1ZXN0IHJlcXVlc3QpIHsKICAgICAgICAgICAgICAgIFVyaSB1cmkgPSByZXF1ZXN0LmdldFVybCgpOwogICAgICAgICAgICAgICAgaWYgKHVyaSA9PSBudWxsKSByZXR1cm4gZmFsc2U7CiAgICAgICAgICAgICAgICBTdHJpbmcgdXJsID0gdXJpLnRvU3RyaW5nKCk7CiAgICAgICAgICAgICAgICBTdHJpbmcgaG9zdCA9IHVyaS5nZXRIb3N0KCk7CgogICAgICAgICAgICAgICAgaWYgKCJhcHBhc3NldHMuYW5kcm9pZHBsYXRmb3JtLm5ldCIuZXF1YWxzKGhvc3QpKSB7CiAgICAgICAgICAgICAgICAgICAgcmV0dXJuIGZhbHNlOwogICAgICAgICAgICAgICAgfQoKICAgICAgICAgICAgICAgIGlmICh1cmwuc3RhcnRzV2l0aCgid2hhdHNhcHA6Ly8iKSB8fCB1cmwuY29udGFpbnMoIndhLm1lIikgfHwgdXJsLnN0YXJ0c1dpdGgoIm1haWx0bzoiKSB8fCB1cmwuc3RhcnRzV2l0aCgidGVsOiIpIHx8IHVybC5zdGFydHNXaXRoKCJodHRwOi8vIikgfHwgdXJsLnN0YXJ0c1dpdGgoImh0dHBzOi8vIikpIHsKICAgICAgICAgICAgICAgICAgICB0cnkgewogICAgICAgICAgICAgICAgICAgICAgICBJbnRlbnQgaW50ZW50ID0gbmV3IEludGVudChJbnRlbnQuQUNUSU9OX1ZJRVcsIHVyaSk7CiAgICAgICAgICAgICAgICAgICAgICAgIHN0YXJ0QWN0aXZpdHkoaW50ZW50KTsKICAgICAgICAgICAgICAgICAgICB9IGNhdGNoIChFeGNlcHRpb24gZSkgewogICAgICAgICAgICAgICAgICAgICAgICBUb2FzdC5tYWtlVGV4dChNYWluQWN0aXZpdHkudGhpcywgItin2b7ZhNuM2qnbjNi02YYg2YXZgti12K8g2LHZiNuMINqv2YjYtNuMINuM2KfZgdiqINmG2LTYryIsIFRvYXN0LkxFTkdUSF9TSE9SVCkuc2hvdygpOwogICAgICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgICAgICByZXR1cm4gdHJ1ZTsKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIHJldHVybiBmYWxzZTsKICAgICAgICAgICAgfQoKICAgICAgICAgICAgQE92ZXJyaWRlCiAgICAgICAgICAgIHB1YmxpYyB2b2lkIG9uUGFnZUZpbmlzaGVkKFdlYlZpZXcgdmlldywgU3RyaW5nIHVybCkgewogICAgICAgICAgICAgICAgc3VwZXIub25QYWdlRmluaXNoZWQodmlldywgdXJsKTsKICAgICAgICAgICAgICAgIC8vIFJlZGlyZWN0IHdpbmRvdy5vcGVuIGNhbGxzIChzdWNoIGFzIFdoYXRzQXBwIHByZS1pbnZvaWNlcykgdG8gbmF0aXZlIEFuZHJvaWQgSW50ZW50CiAgICAgICAgICAgICAgICB2aWV3LmV2YWx1YXRlSmF2YXNjcmlwdCgKICAgICAgICAgICAgICAgICAgICAgICAgIndpbmRvdy5vcGVuID0gZnVuY3Rpb24odSkgeyBpZih1KSB7IHdpbmRvdy5sb2NhdGlvbi5ocmVmID0gdTsgfSByZXR1cm4gbnVsbDsgfTsiLAogICAgICAgICAgICAgICAgICAgICAgICBudWxsCiAgICAgICAgICAgICAgICApOwogICAgICAgICAgICB9CiAgICAgICAgfSk7CgogICAgICAgIHdlYlZpZXcubG9hZFVybChMT0NBTF9BUFBfVVJMKTsKICAgIH0KCiAgICBwdWJsaWMgY2xhc3MgRXZlbnRNYXRlQnJpZGdlIHsKICAgICAgICBASmF2YXNjcmlwdEludGVyZmFjZQogICAgICAgIHB1YmxpYyB2b2lkIHNob3dUb2FzdChTdHJpbmcgbWVzc2FnZSkgewogICAgICAgICAgICBUb2FzdC5tYWtlVGV4dChNYWluQWN0aXZpdHkudGhpcywgbWVzc2FnZSwgVG9hc3QuTEVOR1RIX0xPTkcpLnNob3coKTsKICAgICAgICB9CgogICAgICAgIEBKYXZhc2NyaXB0SW50ZXJmYWNlCiAgICAgICAgcHVibGljIFN0cmluZyBnZXRQYWNrYWdlTmFtZSgpIHsKICAgICAgICAgICAgcmV0dXJuICJjb20uZXZlbnRtYXRlLnZpcCI7CiAgICAgICAgfQogICAgfQoKICAgIEBPdmVycmlkZQogICAgcHVibGljIHZvaWQgb25CYWNrUHJlc3NlZCgpIHsKICAgICAgICBpZiAod2ViVmlldyAhPSBudWxsICYmIHdlYlZpZXcuY2FuR29CYWNrKCkpIHsKICAgICAgICAgICAgd2ViVmlldy5nb0JhY2soKTsKICAgICAgICB9IGVsc2UgewogICAgICAgICAgICBzdXBlci5vbkJhY2tQcmVzc2VkKCk7CiAgICAgICAgfQogICAgfQp9Cg==" | base64 -d > android/app/src/main/java/com/eventmate/vip/MainActivity.java
 
-          cat << 'EOF' > android/settings.gradle
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          rootProject.name = "EventMateVIP"
-          include ':app'
-          EOF
+      - name: 7. Install Gradle 8.7 Direct (Bypass GitHub Cache Outage) & Build APK + AAB
+        working-directory: ./android
+        run: |
+          rm -f eventmate-release.keystore
+          keytool -genkeypair -v -keystore eventmate-release.keystore -alias eventmate_vip -keyalg RSA -keysize 2048 -validity 10000 -storepass EventMateVIP2026 -keypass EventMateVIP2026 -dname "CN=EventMate VIP, OU=FBNM, O=EventMate, L=Tehran, S=Tehran, C=IR"
+          curl -sL https://services.gradle.org/distributions/gradle-8.7-bin.zip -o gradle.zip
+          unzip -q gradle.zip
+          ./gradle-8.7/bin/gradle assembleRelease bundleRelease --no-daemon --stacktrace
 
-          cat << 'EOF' > android/build.gradle
-          plugins {
-              id 'com.android.application' version '8.3.0' apply false
-          }
-          EOF
+      - name: 8. Package Signed Outputs
+        run: |
+          mkdir -p release-artifacts
+          cp android/app/build/outputs/apk/release/*.apk release-artifacts/EventMate-VIP-v1.1.0-Universal.apk
+          cp android/app/build/outputs/apk/release/*.apk release-artifacts/EventMate-VIP-v1.1.0-Myket.apk
+          cp android/app/build/outputs/apk/release/*.apk release-artifacts/EventMate-VIP-v1.1.0-CafeBazaar.apk
+          cp android/app/build/outputs/bundle/release/*.aab release-artifacts/EventMate-VIP-v1.1.0-StoreBundle.aab
+          ls -lh release-artifacts/
 
-          cat << 'EOF' > android/gradle.properties
-          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
-          android.useAndroidX=true
-          android.nonTransitiveRClass=true
-          EOF
+      - name: 9. Publish Direct Download APK to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.1.0
+          name: "EventMate VIP v1.1.0 — نسخه اندروید آفلاین و کامل"
+          files: release-artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          cat << 'EOF' > android/app/build.gradle
-          plugins {
-              id 'com.android.application'
-          }
-
-          def storeFilePath = System.getenv("KEYSTORE_FILE") ?: "../eventmate-release.keystore"
-          def storePass = System.getenv("KEYSTORE_PASSWORD") ?: "EventMateVIP2026"
-          def aliasName = System.getenv("KEY_ALIAS") ?: "eventmate_vip"
-          def keyPass = System.getenv("KEY_PASSWORD") ?: "EventMateVIP2026"
-
-          android {
-              namespace "com.eventmate.vip"
-              compileSdk 34
-
-              buildFeatures {
-                  buildConfig true
-              }
-
-              defaultConfig {
-                  applicationId "com.eventmate.vip"
-                  minSdk 24
-                  targetSdk 34
-                  versionCode 2
-                  versionName "1.1.0"
-              }
-
-              signingConfigs {
-                  release {
-                      storeFile file(storeFilePath)
-                      storePassword storePass
-                      keyAlias aliasName
-                      keyPassword keyPass
-                      enableV1Signing true
-                      enableV2Signing true
-                      enableV3Signing true
-                  }
-              }
-
-              buildTypes {
-                  release {
-                      signingConfig signingConfigs.release
-                      minifyEnabled false
-                      shrinkResources false
-                  }
-              }
-
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-          }
-
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'androidx.webkit:webkit:1.10.0'
-          }
-          EOF
-
-          cat << 'EOF' > android/app/src/main/AndroidManifest.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-              <application
-                  android:allowBackup="true"
-                  android:label="@string/app_name"
-                  android:supportsRtl="true"
-                  android:usesCleartextTraffic="true"
-                  android:hardwareAccelerated="true"
-                  android:theme="@style/AppTheme">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true"
-                      android:configChanges="orientation|screenSize|keyboardHidden">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-
-          cat << 'EOF' > android/app/src/main/res/values/strings.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <string name="app_name">EventMate VIP | ایونت‌مِیت</string>
-          </resources>
-          EOF
-
-          cat << 'EOF' > android/app/src/main/res/values/styles.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
-                  <item name="android:statusBarColor">#FAF7F2</item>
-                  <item name="android:navigationBarColor">#2C1E16</item>
-                  <item name="android:windowBackground">#FAF7F2</item>
-              </style>
-          </resources>
-          EOF
-
-          cat << 'EOF' > android/app/src/main/java/com/eventmate/vip/MainActivity.java
-          package com.eventmate.vip;
-
-          import android.annotation.SuppressLint;
-          import android.app.Activity;
-          import android.content.Intent;
-          import android.graphics.Color;
-          import android.net.Uri;
-          import android.os.Bundle;
-          import android.webkit.JavascriptInterface;
-          import android.webkit.WebChromeClient;
-          import android.webkit.WebResourceRequest;
-          import android.webkit.WebResourceResponse;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-          import android.widget.Toast;
-          import androidx.webkit.WebViewAssetLoader;
-          import java.io.ByteArrayInputStream;
-          import java.nio.charset.StandardCharsets;
-
-          public class MainActivity extends Activity {
-              private WebView webView;
-              private static final String LOCAL_APP_URL = "https://appassets.androidplatform.net/assets/www/index.html";
-
-              @SuppressLint("SetJavaScriptEnabled")
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-
-                  final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
-                          .setDomain("appassets.androidplatform.net")
-                          .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
-                          .build();
-
-                  webView = new WebView(this);
-                  webView.setBackgroundColor(Color.parseColor("#FAF7F2"));
-                  setContentView(webView);
-
-                  WebSettings settings = webView.getSettings();
-                  settings.setJavaScriptEnabled(true);
-                  settings.setDomStorageEnabled(true);
-                  settings.setDatabaseEnabled(true);
-                  settings.setAllowFileAccess(true);
-                  settings.setAllowContentAccess(true);
-                  settings.setLoadWithOverviewMode(true);
-                  settings.setUseWideViewPort(true);
-                  settings.setJavaScriptCanOpenWindowsAutomatically(true);
-                  settings.setMediaPlaybackRequiresUserGesture(false);
-
-                  webView.addJavascriptInterface(new EventMateBridge(), "EventMateAndroid");
-                  webView.setWebChromeClient(new WebChromeClient());
-
-                  webView.setWebViewClient(new WebViewClient() {
-                      @Override
-                      public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                          Uri url = request.getUrl();
-                          if (url != null && "appassets.androidplatform.net".equals(url.getHost())) {
-                              String path = url.getPath();
-                              if (path != null && path.startsWith("/api/")) {
-                                  String offlineJson = "{\"ok\":true,\"offlineApk\":true}";
-                                  return new WebResourceResponse(
-                                          "application/json",
-                                          "UTF-8",
-                                          new ByteArrayInputStream(offlineJson.getBytes(StandardCharsets.UTF_8))
-                                  );
-                              }
-                              return assetLoader.shouldInterceptRequest(url);
-                          }
-                          return super.shouldInterceptRequest(view, request);
-                      }
-
-                      @Override
-                      public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                          Uri uri = request.getUrl();
-             
+      - name: 10. Upload Signed APK + AAB to Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: EventMate-VIP-Signed-Packages
+          path: release-artifacts/*
