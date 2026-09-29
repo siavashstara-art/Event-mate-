@@ -10,29 +10,180 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag (e.g., v1.0.0)'
+        description: 'Release tag (e.g., v1.1.0)'
         required: false
-        default: 'v1.0.0'
+        default: 'v1.1.0'
 
 permissions:
   contents: write
 
 jobs:
   build-signed-apk-and-aab:
-    name: Build & Sign APK + AAB (GitHub, Myket, Cafe Bazaar)
+    name: Build & Sign Standalone APK + AAB (GitHub, Myket, Cafe Bazaar)
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17 (Temurin)
+      - name: 2. Setup Node.js 20 & Build Embedded Web Bundle
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 3. Compile React App into Android APK Assets (100% Offline-Ready)
+        run: |
+          mkdir -p android/app/src/main/assets/www
+          if [ -f package.json ]; then
+            npm install --legacy-peer-deps || npm install
+            npx vite build --base=./
+            cp -r dist/* android/app/src/main/assets/www/
+            echo "// Native APK Asset Mode" > android/app/src/main/assets/www/registerSW.js
+          fi
+
+          if [ ! -f android/app/src/main/assets/www/index.html ]; then
+            cat << 'HTML_EOF' > android/app/src/main/assets/www/index.html
+          <!DOCTYPE html>
+          <html lang="fa" dir="rtl">
+          <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>EventMate VIP | ایونت‌مِیت</title>
+            <style>
+              * { box-sizing: border-box; font-family: Tahoma, system-ui, -apple-system, sans-serif; }
+              body { margin: 0; background: #FAF7F2; color: #2C1E16; padding: 16px; }
+              .header { background: linear-gradient(135deg, #2C1E16, #4A1525); color: #FAF7F2; padding: 20px; border-radius: 20px; border: 2px solid #D4AF37; margin-bottom: 16px; }
+              .badge { display: inline-block; background: #D4AF37; color: #1E130D; padding: 4px 10px; border-radius: 8px; font-weight: bold; font-size: 12px; margin-bottom: 8px; }
+              .card { background: #FFFDF9; border: 2px solid #E6DFD3; border-radius: 20px; padding: 18px; margin-bottom: 16px; box-shadow: 0 8px 24px rgba(44,30,22,0.06); }
+              .card-gold { border-color: #D4AF37; }
+              .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 16px; }
+              .stat { background: #FFFDF9; border: 2px solid #D4AF37; border-radius: 16px; padding: 14px; }
+              .stat-title { font-size: 12px; color: #6E5A4F; font-weight: bold; }
+              .stat-val { font-size: 22px; font-weight: 900; color: #E11D48; margin: 6px 0; }
+              label { display: block; font-size: 13px; font-weight: bold; margin: 10px 0 4px; }
+              input, select { width: 100%; padding: 10px 12px; border-radius: 12px; border: 1.5px solid #D4AF37; background: #fff; font-size: 14px; }
+              .btn { display: inline-block; width: 100%; text-align: center; padding: 14px; border-radius: 14px; border: none; font-weight: 900; font-size: 14px; cursor: pointer; margin-top: 10px; text-decoration: none; }
+              .btn-wa { background: #059669; color: #fff; }
+              .menu-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #E6DFD3; border-radius: 12px; margin-bottom: 8px; cursor: pointer; }
+              .menu-item.active { border-color: #E11D48; background: #FFF1F2; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <span class="badge">نسخه اختصاصی اندروید VIP</span>
+              <h1 id="hallTitle" style="margin:4px 0;font-size:22px;">کاخ‌تالار و عمارت رویال پالاس</h1>
+              <p style="margin:0;font-size:12px;color:#E6C258;">سامانه هوشمند منوساز زنده، محاسبه‌گر چک صیادی بنفش و پیش‌فاکتور آنی واتساپ</p>
+            </div>
+
+            <div class="grid">
+              <div class="stat">
+                <div class="stat-title">هزینه کل تخمینی مراسم</div>
+                <div class="stat-val" id="totalCostDisplay">۲۹۴,۰۰۰,۰۰۰ تومان</div>
+                <div style="font-size:11px;color:#6E5A4F;" id="perGuestDisplay">هر نفر: ۹۸۰,۰۰۰ تومان</div>
+              </div>
+              <div class="stat">
+                <div class="stat-title">تعداد مهمانان مراسم</div>
+                <div class="stat-val" id="guestCountDisplay">۳۰۰ نفر</div>
+                <input type="range" id="guestRange" min="50" max="1000" step="10" value="300" oninput="recalc()" />
+              </div>
+              <div class="stat">
+                <div class="stat-title">مانده اقساط چک صیادی بنفش (۷۰٪)</div>
+                <div class="stat-val" id="installmentDisplay">۲۰۵,۸۰۰,۰۰۰ تومان</div>
+                <div style="font-size:11px;color:#059669;font-weight:bold;" id="eachCheckDisplay">۶ فقره چک ماهانه: ۳۴,۳۰۰,۰۰۰ تومان</div>
+              </div>
+            </div>
+
+            <div class="card card-gold">
+              <h3 style="margin-top:0;">۱. شخصی‌سازی ۱۰ ثانیه‌ای نام تالار (ویژه ارائه حضوری ویزیتور)</h3>
+              <label>نام تالار یا باغ‌عمارت:</label>
+              <input type="text" id="hallInput" value="کاخ‌تالار و عمارت رویال پالاس" oninput="updateHall()" />
+              <label>شماره واتساپ مدیر تالار (جهت دریافت پیش‌فاکتور):</label>
+              <input type="text" id="phoneInput" value="09123456789" />
+              <label>تعداد اقساط چک صیادی بنفش:</label>
+              <select id="monthsSelect" onchange="recalc()">
+                <option value="3">۳ ماهه (بدون کارمزد)</option>
+                <option value="6" selected>۶ ماهه (چک صیادی بنفش)</option>
+                <option value="9">۹ ماهه (ویژه VIP)</option>
+                <option value="12">۱۲ ماهه (طرح طلایی)</option>
+              </select>
+            </div>
+
+            <div class="card">
+              <h3 style="margin-top:0;">۲. انتخاب منوی پذیرایی و تشریفات</h3>
+              <div class="menu-item active" onclick="toggleItem(this, 480000)">
+                <span>باقالی‌پلو با گردن گوسفندی ممتاز</span>
+                <b>۴۸۰,۰۰۰ تومان</b>
+              </div>
+              <div class="menu-item active" onclick="toggleItem(this, 500000)">
+                <span>چلوکباب سلطانی و جوجه زعفرانی</span>
+                <b>۵۰۰,۰۰۰ تومان</b>
+              </div>
+              <div class="menu-item" onclick="toggleItem(this, 220000)">
+                <span>بار فینگرفود گرم و سرد + آبمیوه طبیعی</span>
+                <b>۲۲۰,۰۰۰ تومان</b>
+              </div>
+              <div class="menu-item" onclick="toggleItem(this, 350000)">
+                <span>گل‌آرایی هلندی، آتش‌بازی سرد و موزیک زنده</span>
+                <b>۳۵۰,۰۰۰ تومان</b>
+              </div>
+              <button class="btn btn-wa" onclick="sendWhatsApp()">ارسال پیش‌فاکتور رسمی و برنامه چک صیادی در واتساپ</button>
+            </div>
+
+            <div class="card">
+              <h3 style="margin-top:0;">۳. پنل بازاریاب و پورسانت ۲۵٪ (لایسنس ۴۸ میلیون تومانی)</h3>
+              <p style="font-size:13px;line-height:1.7;">قیمت رسمی لایسنس اختصاصی تالار: <b>۴۸,۰۰۰,۰۰۰ تومان</b> | پورسانت نقدی هر فروش ویزیتور (۲۵٪): <b style="color:#059669;">۱۲,۰۰۰,۰۰۰ تومان</b></p>
+            </div>
+
+            <script>
+              function updateHall() {
+                document.getElementById('hallTitle').innerText = document.getElementById('hallInput').value || 'تالار اختصاصی VIP';
+              }
+              function toggleItem(el, price) {
+                el.classList.toggle('active');
+                recalc();
+              }
+              function recalc() {
+                var guests = parseInt(document.getElementById('guestRange').value || '300', 10);
+                var months = parseInt(document.getElementById('monthsSelect').value || '6', 10);
+                var items = document.querySelectorAll('.menu-item.active');
+                var perGuest = 0;
+                items.forEach(function(i) {
+                  if (i.innerText.indexOf('۴۸۰') > -1) perGuest += 480000;
+                  if (i.innerText.indexOf('۵۰۰') > -1) perGuest += 500000;
+                  if (i.innerText.indexOf('۲۲۰') > -1) perGuest += 220000;
+                  if (i.innerText.indexOf('۳۵۰') > -1) perGuest += 350000;
+                });
+                if (perGuest === 0) perGuest = 480000;
+                var total = guests * perGuest;
+                var remain = Math.round(total * 0.7);
+                var eachCheck = Math.round(remain / months);
+                document.getElementById('guestCountDisplay').innerText = guests.toLocaleString('fa-IR') + ' نفر';
+                document.getElementById('perGuestDisplay').innerText = 'هر نفر: ' + perGuest.toLocaleString('fa-IR') + ' تومان';
+                document.getElementById('totalCostDisplay').innerText = total.toLocaleString('fa-IR') + ' تومان';
+                document.getElementById('installmentDisplay').innerText = remain.toLocaleString('fa-IR') + ' تومان';
+                document.getElementById('eachCheckDisplay').innerText = months.toLocaleString('fa-IR') + ' فقره چک ماهانه: ' + eachCheck.toLocaleString('fa-IR') + ' تومان';
+              }
+              function sendWhatsApp() {
+                var hall = document.getElementById('hallInput').value;
+                var phone = document.getElementById('phoneInput').value.replace(/[^0-9]/g, '').replace(/^0/, '98');
+                var total = document.getElementById('totalCostDisplay').innerText;
+                var checks = document.getElementById('eachCheckDisplay').innerText;
+                var msg = '👑 پیش‌فاکتور رسمی ' + hall + '\nمبلغ کل: ' + total + '\nشرایط تقسیط صیادی: ' + checks;
+                window.location.href = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(msg);
+              }
+            </script>
+          </body>
+          </html>
+          HTML_EOF
+          fi
+
+      - name: 4. Set up JDK 17 (Temurin)
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Accept Android SDK Licenses (Non-Interactive CI Fix)
+      - name: 5. Accept Android SDK Licenses (Non-Interactive CI Fix)
         run: |
           export ANDROID_SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           mkdir -p "$ANDROID_SDK_ROOT/licenses"
@@ -42,18 +193,17 @@ jobs:
             yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
           fi
 
-      - name: Setup Gradle 8.7
+      - name: 6. Setup Gradle 8.7
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.7'
 
-      - name: Auto-Bootstrap Android Project Files (If Missing in Repo)
+      - name: 7. Write Standalone Offline-First Android Project Files
         run: |
           mkdir -p android/app/src/main/java/com/eventmate/vip
           mkdir -p android/app/src/main/res/values
 
-          if [ ! -f android/settings.gradle ]; then
-            cat << 'EOF' > android/settings.gradle
+          cat << 'EOF' > android/settings.gradle
           pluginManagement {
               repositories {
                   google()
@@ -71,26 +221,20 @@ jobs:
           rootProject.name = "EventMateVIP"
           include ':app'
           EOF
-          fi
 
-          if [ ! -f android/build.gradle ]; then
-            cat << 'EOF' > android/build.gradle
+          cat << 'EOF' > android/build.gradle
           plugins {
               id 'com.android.application' version '8.3.0' apply false
           }
           EOF
-          fi
 
-          if [ ! -f android/gradle.properties ]; then
-            cat << 'EOF' > android/gradle.properties
+          cat << 'EOF' > android/gradle.properties
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           android.useAndroidX=true
           android.nonTransitiveRClass=true
           EOF
-          fi
 
-          if [ ! -f android/app/build.gradle ]; then
-            cat << 'EOF' > android/app/build.gradle
+          cat << 'EOF' > android/app/build.gradle
           plugins {
               id 'com.android.application'
           }
@@ -99,7 +243,6 @@ jobs:
           def storePass = System.getenv("KEYSTORE_PASSWORD") ?: "EventMateVIP2026"
           def aliasName = System.getenv("KEY_ALIAS") ?: "eventmate_vip"
           def keyPass = System.getenv("KEY_PASSWORD") ?: "EventMateVIP2026"
-          def apiBaseUrl = System.getenv("EVENTMATE_API_BASE_URL") ?: "https://ais-pre-omeitfmbn6thcwrha6aqzc-453570687245.europe-west2.run.app"
 
           android {
               namespace "com.eventmate.vip"
@@ -113,12 +256,8 @@ jobs:
                   applicationId "com.eventmate.vip"
                   minSdk 24
                   targetSdk 34
-                  versionCode 1
-                  versionName "1.0.0"
-                  buildConfigField "String", "API_BASE_URL", "\"${apiBaseUrl}\""
-                  buildConfigField "String", "SERVER_PROXY_CONCIERGE", "\"${apiBaseUrl}/api/concierge\""
-                  buildConfigField "String", "SERVER_PROXY_RATES", "\"${apiBaseUrl}/api/rates\""
-                  buildConfigField "String", "SERVER_PROXY_OAUTH_CONFIG", "\"${apiBaseUrl}/api/auth/oauth-config\""
+                  versionCode 2
+                  versionName "1.1.0"
               }
 
               signingConfigs {
@@ -152,10 +291,8 @@ jobs:
               implementation 'androidx.webkit:webkit:1.10.0'
           }
           EOF
-          fi
 
-          if [ ! -f android/app/src/main/AndroidManifest.xml ]; then
-            cat << 'EOF' > android/app/src/main/AndroidManifest.xml
+          cat << 'EOF' > android/app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET" />
@@ -179,19 +316,15 @@ jobs:
               </application>
           </manifest>
           EOF
-          fi
 
-          if [ ! -f android/app/src/main/res/values/strings.xml ]; then
-            cat << 'EOF' > android/app/src/main/res/values/strings.xml
+          cat << 'EOF' > android/app/src/main/res/values/strings.xml
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
               <string name="app_name">EventMate VIP | ایونت‌مِیت</string>
           </resources>
           EOF
-          fi
 
-          if [ ! -f android/app/src/main/res/values/styles.xml ]; then
-            cat << 'EOF' > android/app/src/main/res/values/styles.xml
+          cat << 'EOF' > android/app/src/main/res/values/styles.xml
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
               <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
@@ -201,10 +334,8 @@ jobs:
               </style>
           </resources>
           EOF
-          fi
 
-          if [ ! -f android/app/src/main/java/com/eventmate/vip/MainActivity.java ]; then
-            cat << 'EOF' > android/app/src/main/java/com/eventmate/vip/MainActivity.java
+          cat << 'EOF' > android/app/src/main/java/com/eventmate/vip/MainActivity.java
           package com.eventmate.vip;
 
           import android.annotation.SuppressLint;
@@ -213,19 +344,32 @@ jobs:
           import android.graphics.Color;
           import android.net.Uri;
           import android.os.Bundle;
+          import android.webkit.JavascriptInterface;
           import android.webkit.WebChromeClient;
           import android.webkit.WebResourceRequest;
+          import android.webkit.WebResourceResponse;
           import android.webkit.WebSettings;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
+          import android.widget.Toast;
+          import androidx.webkit.WebViewAssetLoader;
+          import java.io.ByteArrayInputStream;
+          import java.nio.charset.StandardCharsets;
 
           public class MainActivity extends Activity {
               private WebView webView;
+              private static final String LOCAL_APP_URL = "https://appassets.androidplatform.net/assets/www/index.html";
 
               @SuppressLint("SetJavaScriptEnabled")
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
+
+                  final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
+                          .setDomain("appassets.androidplatform.net")
+                          .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                          .build();
+
                   webView = new WebView(this);
                   webView.setBackgroundColor(Color.parseColor("#FAF7F2"));
                   setContentView(webView);
@@ -234,106 +378,38 @@ jobs:
                   settings.setJavaScriptEnabled(true);
                   settings.setDomStorageEnabled(true);
                   settings.setDatabaseEnabled(true);
+                  settings.setAllowFileAccess(true);
+                  settings.setAllowContentAccess(true);
                   settings.setLoadWithOverviewMode(true);
                   settings.setUseWideViewPort(true);
+                  settings.setJavaScriptCanOpenWindowsAutomatically(true);
+                  settings.setMediaPlaybackRequiresUserGesture(false);
 
+                  webView.addJavascriptInterface(new EventMateBridge(), "EventMateAndroid");
                   webView.setWebChromeClient(new WebChromeClient());
+
                   webView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                          Uri url = request.getUrl();
+                          if (url != null && "appassets.androidplatform.net".equals(url.getHost())) {
+                              String path = url.getPath();
+                              if (path != null && path.startsWith("/api/")) {
+                                  String offlineJson = "{\"ok\":true,\"offlineApk\":true}";
+                                  return new WebResourceResponse(
+                                          "application/json",
+                                          "UTF-8",
+                                          new ByteArrayInputStream(offlineJson.getBytes(StandardCharsets.UTF_8))
+                                  );
+                              }
+                              return assetLoader.shouldInterceptRequest(url);
+                          }
+                          return super.shouldInterceptRequest(view, request);
+                      }
+
                       @Override
                       public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                           Uri uri = request.getUrl();
+                          if (uri == null) return false;
                           String url = uri.toString();
-                          if (url.startsWith("whatsapp://") || url.contains("wa.me") || url.startsWith("tel:")) {
-                              try {
-                                  startActivity(new Intent(Intent.ACTION_VIEW, uri));
-                              } catch (Exception ignored) {}
-                              return true;
-                          }
-                          return false;
-                      }
-                  });
-                  webView.loadUrl(BuildConfig.API_BASE_URL);
-              }
-
-              @Override
-              public void onBackPressed() {
-                  if (webView != null && webView.canGoBack()) {
-                      webView.goBack();
-                  } else {
-                      super.onBackPressed();
-                  }
-              }
-          }
-          EOF
-          fi
-
-      - name: Generate RSA-2048 Production Keystore
-        working-directory: ./android
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          rm -f eventmate-release.keystore
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 --decode > eventmate-release.keystore
-          else
-            STORE_PASS="${KEYSTORE_PASSWORD:-EventMateVIP2026}"
-            ALIAS_NAME="${KEY_ALIAS:-eventmate_vip}"
-            KEY_PASS="${KEY_PASSWORD:-EventMateVIP2026}"
-            keytool -genkeypair -v \
-              -keystore eventmate-release.keystore \
-              -alias "$ALIAS_NAME" \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass "$STORE_PASS" \
-              -keypass "$KEY_PASS" \
-              -dname "CN=EventMate VIP, OU=FBNM Stage, O=New Metaversity, L=Tehran, S=Tehran, C=IR"
-          fi
-
-      - name: Build Signed Release APK & Store AAB via Gradle
-        working-directory: ./android
-        env:
-          SECRET_API_URL: ${{ secrets.EVENTMATE_API_BASE_URL }}
-          SECRET_STORE_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
-          SECRET_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          SECRET_KEY_PASS: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          export EVENTMATE_API_BASE_URL="${SECRET_API_URL:-https://ais-pre-omeitfmbn6thcwrha6aqzc-453570687245.europe-west2.run.app}"
-          export KEYSTORE_FILE="../eventmate-release.keystore"
-          export KEYSTORE_PASSWORD="${SECRET_STORE_PASS:-EventMateVIP2026}"
-          export KEY_ALIAS="${SECRET_KEY_ALIAS:-eventmate_vip}"
-          export KEY_PASSWORD="${SECRET_KEY_PASS:-EventMateVIP2026}"
-          gradle assembleRelease bundleRelease --no-daemon --stacktrace
-
-      - name: Package Store-Ready Signed Outputs (GitHub, Myket, Cafe Bazaar)
-        run: |
-          mkdir -p release-artifacts
-          cp android/app/build/outputs/apk/release/*.apk release-artifacts/EventMate-VIP-v1.0.0-Universal.apk
-          cp android/app/build/outputs/apk/release/*.apk release-artifacts/EventMate-VIP-v1.0.0-Myket.apk
-          cp android/app/build/outputs/apk/release/*.apk release-artifacts/EventMate-VIP-v1.0.0-CafeBazaar.apk
-          cp android/app/build/outputs/bundle/release/*.aab release-artifacts/EventMate-VIP-v1.0.0-StoreBundle.aab
-          cd release-artifacts && sha256sum *.apk *.aab > SHA256SUMS.txt
-
-      - name: Upload Signed Store Packages (Artifacts)
-        uses: actions/upload-artifact@v4
-        with:
-          name: EventMate-VIP-Signed-Packages
-          path: release-artifacts/*
-
-      - name: Publish Signed APK & AAB to GitHub Releases
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.inputs.release_tag || 'v1.0.0' }}
-          name: "EventMate VIP | ایونت‌مِیت — نسخه امضاشده (APK + AAB)"
-          files: |
-            release-artifacts/EventMate-VIP-v1.0.0-Universal.apk
-            release-artifacts/EventMate-VIP-v1.0.0-Myket.apk
-            release-artifacts/EventMate-VIP-v1.0.0-CafeBazaar.apk
-            release-artifacts/EventMate-VIP-v1.0.0-StoreBundle.aab
-            release-artifacts/SHA256SUMS.txt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                          Str
